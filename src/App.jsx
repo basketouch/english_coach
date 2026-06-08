@@ -1,5 +1,6 @@
 import { useContext } from 'react'
 import { AuthContext, AuthProvider } from './context/AuthContext'
+import { ProgressProvider } from './context/ProgressContext'
 import MainApp from './MainApp'
 import LoginPage from './pages/LoginPage'
 import NOCHE from './theme'
@@ -23,7 +24,15 @@ function AppContent() {
     )
   }
 
-  return auth.user ? <MainApp /> : <LoginPage />
+  if (!auth.user) {
+    return <LoginPage />
+  }
+
+  return (
+    <ProgressProvider>
+      <MainApp />
+    </ProgressProvider>
+  )
 }
 
 export default function App() {
