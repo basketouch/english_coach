@@ -22,6 +22,29 @@ export function ProgressProvider({ children }) {
     // Don't block UI - load in background
     setLoading(false)
 
+    // Skip Supabase for dev users (RLS issues)
+    if (auth.user.id.startsWith('dev-')) {
+      console.log('Dev user: using local data only')
+      // Build deck from BBALL content directly
+      import('../content').then(m => {
+        const BBALL = m.default
+        const allConcepts = []
+        BBALL.categories.forEach(cat => {
+          cat.terms.forEach(term => {
+            allConcepts.push({
+              id: term.en,
+              type: 'term',
+              category: cat.es,
+              ...term
+            })
+          })
+        })
+        setConcepts(allConcepts)
+      })
+      return
+    }
+
+    // Real user: load from Supabase
     const loadData = async () => {
       try {
         // Seed concepts first (only once)
@@ -30,7 +53,7 @@ export function ProgressProvider({ children }) {
             await seedConcepts()
             setSeeded(true)
           } catch (seedError) {
-            console.warn('Seed skipped (may exist):', seedError.message)
+            console.warn('Seed skipped:', seedError.message)
             setSeeded(true)
           }
         }
@@ -48,12 +71,9 @@ export function ProgressProvider({ children }) {
         setProgress(progressMap)
       } catch (error) {
         console.error('Loading progress error:', error)
-        setConcepts([])
-        setProgress({})
       }
     }
 
-    // Load in background, don't await
     loadData().catch(err => console.error('Bg load failed:', err))
   }, [auth?.user?.id, seeded])
 
