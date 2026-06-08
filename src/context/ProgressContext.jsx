@@ -14,19 +14,24 @@ export function ProgressProvider({ children }) {
 
   // Load concepts and progress when user logs in
   useEffect(() => {
-    if (!auth?.user?.id) return
+    if (!auth?.user?.id) {
+      setLoading(false)
+      return
+    }
+
+    // Don't block UI - load in background
+    setLoading(false)
 
     const loadData = async () => {
-      setLoading(true)
       try {
-        // Seed concepts first (only once, will be skipped if already exist)
+        // Seed concepts first (only once)
         if (!seeded) {
           try {
             await seedConcepts()
             setSeeded(true)
           } catch (seedError) {
-            console.warn('Seed error (may already exist):', seedError.message)
-            setSeeded(true) // continue anyway
+            console.warn('Seed skipped (may exist):', seedError.message)
+            setSeeded(true)
           }
         }
 
@@ -42,17 +47,15 @@ export function ProgressProvider({ children }) {
         })
         setProgress(progressMap)
       } catch (error) {
-        console.error('Error loading progress:', error)
-        // Don't block app on progress error
+        console.error('Loading progress error:', error)
         setConcepts([])
         setProgress({})
-      } finally {
-        setLoading(false)
       }
     }
 
-    loadData()
-  }, [auth?.user?.id])
+    // Load in background, don't await
+    loadData().catch(err => console.error('Bg load failed:', err))
+  }, [auth?.user?.id, seeded])
 
   // Save progress for a concept
   const updateProgress = useCallback(
