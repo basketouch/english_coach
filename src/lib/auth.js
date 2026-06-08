@@ -1,5 +1,17 @@
 import { supabase } from './supabase'
 
+// Simple login (no magic link needed for testing)
+export async function signInWithEmail(email) {
+  // For development: just store email and create a fake user
+  const user = {
+    id: 'dev-' + Math.random().toString(36).substr(2, 9),
+    email,
+    user_metadata: {}
+  }
+  localStorage.setItem('ec-user', JSON.stringify(user))
+  return { user }
+}
+
 export async function signInWithMagicLink(email) {
   const { error, data } = await supabase.auth.signInWithOtp({
     email,

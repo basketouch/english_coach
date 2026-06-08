@@ -8,11 +8,20 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Check localStorage first (dev login)
+    const stored = localStorage.getItem('ec-user')
+    if (stored) {
+      setUser(JSON.parse(stored))
+      setLoading(false)
+      return
+    }
+
+    // Try Supabase auth
     const subscription = onAuthStateChange((authUser) => {
       setUser(authUser)
       setLoading(false)
     })
-    return () => subscription?.unsubscribe()
+    return () => subscription?.unsubscribe?.()
   }, [])
 
   const signOut = useCallback(async () => {

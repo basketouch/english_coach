@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { signInWithMagicLink } from '../lib/auth'
+import { signInWithEmail } from '../lib/auth'
 
 const styles = {
   container: {
@@ -125,10 +125,10 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
     try {
-      await signInWithMagicLink(email)
+      await signInWithEmail(email)
       setSent(true)
     } catch (err) {
-      setError(err.message || 'Error enviando magic link')
+      setError(err.message || 'Error')
     } finally {
       setLoading(false)
     }
@@ -146,12 +146,9 @@ export default function LoginPage() {
         {sent ? (
           <div style={styles.success}>
             <div style={styles.icon}>✓</div>
-            <h2 style={{ ...styles.h1, fontSize: '24px' }}>Revisa tu email</h2>
-            <p style={styles.p}>Enviamos un link a <strong style={{ color: '#F3F4F7' }}>{email}</strong></p>
-            <p style={styles.small}>Haz clic en el link para entrar a la app</p>
-            <button style={{ ...styles.button, background: '#262932', color: '#FF6B2C', border: '1px solid rgba(255,255,255,0.10)', marginTop: '24px' }} onClick={() => { setSent(false); setEmail(''); }}>
-              Usar otro email
-            </button>
+            <h2 style={{ ...styles.h1, fontSize: '24px' }}>¡Bienvenido!</h2>
+            <p style={styles.p}>Entrando como <strong style={{ color: '#F3F4F7' }}>{email}</strong></p>
+            <p style={styles.small}>Cargando la app...</p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} style={styles.form}>
@@ -169,9 +166,9 @@ export default function LoginPage() {
             />
             {error && <div style={styles.error}>{error}</div>}
             <button type="submit" disabled={loading || !email} style={{ ...styles.button, opacity: loading || !email ? 0.6 : 1, cursor: loading || !email ? 'not-allowed' : 'pointer' }}>
-              {loading ? 'Enviando...' : 'Enviar magic link'}
+              {loading ? 'Entrando...' : 'Entrar'}
             </button>
-            <p style={styles.small}>No necesitas contraseña. Te enviaremos un link seguro por email.</p>
+            <p style={styles.small}>Escribe tu email para entrar a la app.</p>
           </form>
         )}
       </div>
