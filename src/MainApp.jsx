@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import NOCHE from './theme'
 import BBALL from './content'
+import { useProgress } from './context/ProgressContext'
+import { buildDynamicDeck } from './lib/deck'
+import { updateProgress as updateProgressSM2 } from './lib/sm2'
+import { useAuth } from './context/AuthContext'
 
 function pickEnVoice() {
   const vs = window.speechSynthesis ? speechSynthesis.getVoices() : [];
@@ -301,13 +305,46 @@ function buildDeck() {
 function shuffle(a) { const x = a.slice(); for (let i = x.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [x[i], x[j]] = [x[j], x[i]]; } return x; }
 
 function FlashMode({ speak }) {
-  const deck = useMemo(() => shuffle(buildDeck()), []);
-  const [i, setI] = useState(0);
-  const [flip, setFlip] = useState(false);
-  const [known, setKnown] = useState(0);
-  const card = deck[i % deck.length];
-  const reveal = () => { if (!flip) { setFlip(true); speak(card.en); } };
-  const next = (got) => { if (got) setKnown(k => k + 1); setFlip(false); setI(v => v + 1); };
+  const { updateProgress, getProgress } = useProgress()
+  const auth = useAuth()
+  const [deck, setDeck] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [i, setI] = useState(0)
+  const [flip, setFlip] = useState(false)
+  const [known, setKnown] = useState(0)
+
+  // Load dynamic deck
+  useEffect(() => {
+    const load = async () => {
+      const newDeck = await buildDynamicDeck(auth.user.id, 50)
+      setDeck(newDeck || [])
+      setLoading(false)
+    }
+    load()
+  }, [auth.user.id])
+
+  if (loading || deck.length === 0) {
+    return <div className="bb-practice" style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--ink-soft)' }}>Cargando mazo...</div>
+  }
+
+  const card = deck[i % deck.length]
+  const progress = getProgress(card.id)
+  const mastery = progress.attempts > 0 ? Math.round((progress.correct_count / progress.attempts) * 100) : 0
+
+  const reveal = () => {
+    if (!flip) { setFlip(true); speak(card.en); }
+  }
+
+  const next = async (got) => {
+    // Update progress with SM-2
+    const updated = updateProgressSM2(progress, got)
+    await updateProgress(card.id, updated)
+
+    if (got) setKnown(k => k + 1)
+    setFlip(false)
+    setI(v => v + 1)
+  }
+
   return (
     <div className="bb-practice">
       <div className="bb-prog"><span style={{ width: `${(i % deck.length) / deck.length * 100}%` }}/></div>
@@ -321,9 +358,12 @@ function FlashMode({ speak }) {
           <div className="bb-flash-hint">Toca para ver la respuesta</div>
         </div>
         <div className="bb-flash-face back">
-          <div className="bb-flash-tag">{card.cat}</div>
+          <div className="bb-flash-tag">{card.category}</div>
           <div className="bb-flash-en">{card.en}</div>
           <div className="bb-say big">{card.say}</div>
+          <div style={{ fontSize: '12px', color: 'var(--ink-mute)', marginTop: '8px' }}>
+            Nivel {progress.level}/4 · {progress.streak} racha · {mastery}%
+          </div>
           <div className="bb-flash-speak"><SpeakBtn text={card.en} speak={speak} big/></div>
         </div>
         </div>
@@ -338,34 +378,68 @@ function FlashMode({ speak }) {
 }
 
 function ListenMode({ speak }) {
-  const deck = useMemo(() => shuffle(buildDeck()), []);
-  const [i, setI] = useState(0);
-  const [picked, setPicked] = useState(null);
-  const correct = deck[i % deck.length];
+  const { updateProgress, getProgress } = useProgress()
+  const auth = useAuth()
+  const [deck, setDeck] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [i, setI] = useState(0)
+  const [picked, setPicked] = useState(null)
+
+  useEffect(() => {
+    const load = async () => {
+      const newDeck = await buildDynamicDeck(auth.user.id, 50)
+      setDeck(newDeck || [])
+      setLoading(false)
+    }
+    load()
+  }, [auth.user.id])
+
+  if (loading || deck.length === 0) {
+    return <div className="bb-practice" style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--ink-soft)' }}>Cargando mazo...</div>
+  }
+
+  const correct = deck[i % deck.length]
+  const progress = getProgress(correct.id)
   const options = useMemo(() => {
-    const others = shuffle(deck.filter(d => d.es !== correct.es)).slice(0, 2);
-    return shuffle([correct, ...others]);
-  }, [i]);
-  useEffect(() => { const t = setTimeout(() => speak(correct.en), 280); return () => clearTimeout(t); }, [i]);
-  const pick = (o) => { if (picked) return; setPicked(o); };
-  const next = () => { setPicked(null); setI(v => v + 1); };
+    const others = shuffle(deck.filter(d => d.es !== correct.es)).slice(0, 2)
+    return shuffle([correct, ...others])
+  }, [i, deck])
+
+  useEffect(() => {
+    const t = setTimeout(() => speak(correct.en), 280)
+    return () => clearTimeout(t)
+  }, [i, correct.en])
+
+  const pick = async (o) => {
+    if (picked) return
+    const got = o.es === correct.es
+    const updated = updateProgressSM2(progress, got)
+    await updateProgress(correct.id, updated)
+    setPicked(o)
+  }
+
+  const next = () => {
+    setPicked(null)
+    setI(v => v + 1)
+  }
+
   return (
     <div className="bb-practice">
       <div className="bb-listen-q">
-        <div className="bb-flash-tag">¿Qué he dicho?</div>
+        <div className="bb-flash-tag">¿Qué he dicho? (Nivel {progress.level}/4)</div>
         <button className="bb-listen-play" onClick={() => speak(correct.en)}>
           <Icon name="speaker" size={30}/> <span>Escuchar de nuevo</span>
         </button>
       </div>
       <div className="bb-opts">
         {options.map((o, k) => {
-          let cls = 'bb-opt';
+          let cls = 'bb-opt'
           if (picked) {
-            if (o.es === correct.es) cls += ' right';
-            else if (o.es === picked.es) cls += ' wrong';
-            else cls += ' dim';
+            if (o.es === correct.es) cls += ' right'
+            else if (o.es === picked.es) cls += ' wrong'
+            else cls += ' dim'
           }
-          return <button key={k} className={cls} onClick={() => pick(o)}>{o.es}</button>;
+          return <button key={k} className={cls} onClick={() => pick(o)}>{o.es}</button>
         })}
       </div>
       {picked && (

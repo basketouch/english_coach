@@ -21,30 +21,38 @@ export function ProgressProvider({ children }) {
       try {
         // Seed concepts first (only once, will be skipped if already exist)
         if (!seeded) {
-          await seedConcepts()
-          setSeeded(true)
+          try {
+            await seedConcepts()
+            setSeeded(true)
+          } catch (seedError) {
+            console.warn('Seed error (may already exist):', seedError.message)
+            setSeeded(true) // continue anyway
+          }
         }
 
         // Load concepts
         const conceptsData = await loadConcepts(auth.user.id)
-        setConcepts(conceptsData)
+        setConcepts(conceptsData || [])
 
         // Load progress
         const progressData = await loadProgress(auth.user.id)
         const progressMap = {}
-        progressData.forEach(p => {
+        ;(progressData || []).forEach(p => {
           progressMap[p.concept_id] = p
         })
         setProgress(progressMap)
       } catch (error) {
         console.error('Error loading progress:', error)
+        // Don't block app on progress error
+        setConcepts([])
+        setProgress({})
       } finally {
         setLoading(false)
       }
     }
 
     loadData()
-  }, [auth?.user?.id, seeded])
+  }, [auth?.user?.id])
 
   // Save progress for a concept
   const updateProgress = useCallback(
