@@ -385,6 +385,7 @@ function ListenMode({ speak }) {
   const [i, setI] = useState(0)
   const [picked, setPicked] = useState(null)
 
+  // All hooks MUST be called unconditionally
   useEffect(() => {
     const load = async () => {
       const newDeck = await buildDynamicDeck(auth.user.id, 50)
@@ -394,24 +395,23 @@ function ListenMode({ speak }) {
     load()
   }, [auth.user.id])
 
-  if (loading || deck.length === 0) {
-    return <div className="bb-practice" style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--ink-soft)' }}>Cargando mazo...</div>
-  }
+  const correct = deck.length > 0 ? deck[i % deck.length] : null
+  const progress = correct ? getProgress(correct.id) : { level: 0 }
 
-  const correct = deck[i % deck.length]
-  const progress = getProgress(correct.id)
   const options = useMemo(() => {
+    if (!correct || deck.length === 0) return []
     const others = shuffle(deck.filter(d => d.es !== correct.es)).slice(0, 2)
     return shuffle([correct, ...others])
-  }, [i, deck])
+  }, [i, deck, correct])
 
   useEffect(() => {
+    if (!correct) return
     const t = setTimeout(() => speak(correct.en), 280)
     return () => clearTimeout(t)
-  }, [i, correct.en])
+  }, [i, correct?.en])
 
   const pick = async (o) => {
-    if (picked) return
+    if (picked || !correct) return
     const got = o.es === correct.es
     const updated = updateProgressSM2(progress, got)
     await updateProgress(correct.id, updated)
@@ -421,6 +421,11 @@ function ListenMode({ speak }) {
   const next = () => {
     setPicked(null)
     setI(v => v + 1)
+  }
+
+  // Loading state
+  if (loading || !correct) {
+    return <div className="bb-practice" style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--ink-soft)' }}>Cargando mazo...</div>
   }
 
   return (
