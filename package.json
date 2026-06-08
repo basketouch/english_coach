@@ -1,0 +1,27 @@
+{
+  "name": "english_coach",
+  "version": "1.0.0",
+  "description": "App para aprender el inglés que necesitas para **dirigir entrenamientos de baloncesto**: vocabulario, frases de instrucción, guiones de ejercicios completos y práctica con audio. Español → Inglés, con guía de pronunciación pensada para hispanohablantes.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/basketouch/english_coach.git"
+  },
+  "bugs": {
+    "url": "https://github.com/basketouch/english_coach/issues"
+  },
+  "homepage": "https://github.com/basketouch/english_coach#readme",
+  "dependencies": {
+    "@vitejs/plugin-react": "^6.0.2",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "vite": "^8.0.16",
+    "vite-plugin-pwa": "^1.3.0"
+  }
+}
