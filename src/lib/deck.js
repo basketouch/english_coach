@@ -1,4 +1,5 @@
 import { loadConcepts, loadProgress } from './progress'
+import BBALL from '../content'
 
 // Weights for each level (how often they appear)
 const LEVEL_WEIGHTS = {
@@ -11,58 +12,82 @@ const LEVEL_WEIGHTS = {
 
 export async function buildDynamicDeck(userId, limit = 50) {
   try {
-    // Load all concepts and progress
-    const [concepts, progressList] = await Promise.all([
-      loadConcepts(userId),
-      loadProgress(userId),
-    ])
+    let concepts = []
+    let progressList = []
 
-    // Create progress map
-    const progressMap = {}
-    progressList.forEach(p => {
-      progressMap[p.concept_id] = p
-    })
-
-    // Filter only terms (not phrases/drills for now)
-    const terms = concepts.filter(c => c.type === 'term')
-
-    // Assign weights
-    const weighted = terms.map(term => {
-      const progress = progressMap[term.id] || { level: 0 }
-      const now = new Date()
-      const nextReview = progress.next_review ? new Date(progress.next_review) : null
-
-      // Only include if it's time to review (or no progress yet)
-      const isTimeToReview = !nextReview || nextReview <= now
-
-      return {
-        ...term,
-        progress,
-        weight: isTimeToReview ? LEVEL_WEIGHTS[progress.level || 0] : 0,
-        isTimeToReview,
-      }
-    })
-
-    // Filter: keep only items that should be reviewed
-    const toReview = weighted.filter(w => w.weight > 0)
-
-    // If not enough, add all with weight > 0.01
-    if (toReview.length < 10) {
-      weighted.forEach(w => {
-        if (w.weight > 0.01 && !toReview.includes(w)) {
-          toReview.push(w)
-        }
+    // Dev users: use local data
+    if (userId.startsWith('dev-')) {
+      BBALL.categories.forEach(cat => {
+        cat.terms.forEach(term => {
+          concepts.push({
+            id: term.en,
+            type: 'term',
+            category: cat.es,
+            en: term.en,
+            es: term.es,
+            say: term.say || '',
+          })
+        })
       })
+    } else {
+      // Real users: load from Supabase
+      const [conceptsData, progressData] = await Promise.all([
+        loadConcepts(userId),
+        loadProgress(userId),
+      ])
+      concepts = conceptsData || []
+      progressList = progressData || []
+      return buildDeck(concepts, progressList, limit)
     }
 
-    // Weighted shuffle
-    const deck = weightedShuffle(toReview, 'weight').slice(0, limit)
+    // Build deck from local concepts
+    return buildDeck(concepts, progressList, limit)
 
-    return deck
   } catch (error) {
     console.error('Error building deck:', error)
     return []
   }
+}
+
+function buildDeck(concepts, progressList, limit) {
+  // Create progress map
+  const progressMap = {}
+  progressList.forEach(p => {
+    progressMap[p.concept_id] = p
+  })
+
+  // Filter only terms
+  const terms = concepts.filter(c => c.type === 'term')
+
+  // Assign weights
+  const weighted = terms.map(term => {
+    const progress = progressMap[term.id] || { level: 0 }
+    const now = new Date()
+    const nextReview = progress.next_review ? new Date(progress.next_review) : null
+    const isTimeToReview = !nextReview || nextReview <= now
+
+    return {
+      ...term,
+      progress,
+      weight: isTimeToReview ? LEVEL_WEIGHTS[progress.level || 0] : 0,
+      isTimeToReview,
+    }
+  })
+
+  // Filter items to review
+  const toReview = weighted.filter(w => w.weight > 0)
+
+  // If not enough, add more
+  if (toReview.length < 10) {
+    weighted.forEach(w => {
+      if (w.weight > 0.01 && !toReview.includes(w)) {
+        toReview.push(w)
+      }
+    })
+  }
+
+  // Weighted shuffle
+  return weightedShuffle(toReview, 'weight').slice(0, limit || 50)
 }
 
 // Weighted Fisher-Yates shuffle
